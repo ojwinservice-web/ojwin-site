@@ -2,13 +2,10 @@
    ۱) تنظیمات — همه‌چیزهایی که معمولاً لازمه ویرایش کنی، اینجاست
    ========================================================================== */
 
-// توکن و آیدی ربات تلگرام — مستقیم اینجا قرار داده شده (به درخواست صاحب سایت).
-// توجه: چون این فایل روی گیت‌هاب عمومیه، این توکن برای هرکسی قابل مشاهده است.
-// اگر روزی رفتار عجیب یا اسپم از طرف ربات دیدی، برو به @BotFather و دستور
-// /revoke را بزن تا توکن باطل و یک توکن جدید صادر شود.
-const TELEGRAM_CONFIG = {
-  botToken: "8890320684:AAF04n-RtbYd7MvNoUaMVYdfsR7wNxVzUTU",
-  chatId: "78048785"
+// آدرس واسطه امن (Cloudflare Worker) برای ارسال سفارش به تلگرام.
+// توکن ربات دیگه اینجا نیست — فقط داخل تنظیمات Cloudflare (Secrets) ذخیره شده.
+const NOTIFY_CONFIG = {
+  workerUrl: "https://ojwin-site.veithmiroslav74.workers.dev/"
 };
 
 // شماره تماس اصلی سایت (برای دکمه‌های تماس و پیام نهایی)
@@ -304,33 +301,27 @@ function calculatePrice(){
 }
 
 /* ==========================================================================
-   ۷) ارسال نتیجه به تلگرام (مستقیم از مرورگر — بدون واسطه)
+   ۷) ارسال نتیجه به تلگرام (از طریق واسطه امن Cloudflare Worker)
    ========================================================================== */
-function escapeHtml(s){
-  return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-}
-
 async function sendOrderNotification(price){
-  const lines = [
-    "🪟 <b>سفارش جدید از سایت اوج وین</b>",
-    `نام: ${escapeHtml(state.name)}`,
-    `شماره تماس: ${escapeHtml(state.phone)}`,
-    `محصول: ${escapeHtml(state.product)}`,
-    `ابعاد: ${escapeHtml(state.length)} × ${escapeHtml(state.width)} سانتی‌متر`,
-    `رنگ / برند: ${escapeHtml(state.color)} / ${escapeHtml(state.brand)}`,
-    `بازشو: ${escapeHtml(state.opening)}${state.panels ? " — " + escapeHtml(state.panels) : ""}`,
-    `شیشه: ${escapeHtml(state.glass)}`,
-    `جزئیات: ${escapeHtml(state.finish)}${state.flower === "بله" ? " + گل دکوراتیو" : ""}`,
-    `وضعیت نصب: ${escapeHtml(state.install)}`,
-    `💰 قیمت برآوردی: ${toFa(price)} تومان`
-  ];
-  const text = lines.join("\n");
+  const payload = {
+    name: state.name,
+    phone: state.phone,
+    product: state.product,
+    dims: `${state.length} × ${state.width} سانتی‌متر`,
+    colorBrand: `${state.color} / ${state.brand}`,
+    opening: `${state.opening}${state.panels ? " — " + state.panels : ""}`,
+    glass: state.glass,
+    finishDetail: `${state.finish}${state.flower === "بله" ? " + گل دکوراتیو" : ""}`,
+    install: state.install,
+    price: toFa(price)
+  };
 
   try{
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`, {
+    const res = await fetch(NOTIFY_CONFIG.workerUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: TELEGRAM_CONFIG.chatId, text, parse_mode: "HTML" })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     return { ok: !!data.ok };
@@ -443,4 +434,4 @@ try{
   });
 } catch(err){
   console.error(err);
-     }
+                      }
