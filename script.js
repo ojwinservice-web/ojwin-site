@@ -2,11 +2,13 @@
    ۱) تنظیمات — همه‌چیزهایی که معمولاً لازمه ویرایش کنی، اینجاست
    ========================================================================== */
 
-// آدرس واسطه (Cloudflare Worker) برای ارسال امن سفارش به تلگرام.
-// توکن ربات اینجا نیست و اصلاً داخل کد سایت قرار نمی‌گیرد.
-// راهنمای کامل ساخت این واسطه رایگان، داخل فایل README.md است.
-const NOTIFY_CONFIG = {
-  workerUrl: "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/"
+// توکن و آیدی ربات تلگرام — مستقیم اینجا قرار داده شده (به درخواست صاحب سایت).
+// توجه: چون این فایل روی گیت‌هاب عمومیه، این توکن برای هرکسی قابل مشاهده است.
+// اگر روزی رفتار عجیب یا اسپم از طرف ربات دیدی، برو به @BotFather و دستور
+// /revoke را بزن تا توکن باطل و یک توکن جدید صادر شود.
+const TELEGRAM_CONFIG = {
+  botToken: "8890320684:AAF04n-RtbYd7MvNoUaMVYdfsR7wNxVzUTU",
+  chatId: "78048785"
 };
 
 // شماره تماس اصلی سایت (برای دکمه‌های تماس و پیام نهایی)
@@ -302,29 +304,33 @@ function calculatePrice(){
 }
 
 /* ==========================================================================
-   ۷) ارسال نتیجه به تلگرام (از طریق واسطه امن)
+   ۷) ارسال نتیجه به تلگرام (مستقیم از مرورگر — بدون واسطه)
    ========================================================================== */
+function escapeHtml(s){
+  return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
 async function sendOrderNotification(price){
-  if(NOTIFY_CONFIG.workerUrl.includes("YOUR-WORKER-NAME")){
-    return { ok:false, reason:"not_configured" };
-  }
-  const payload = {
-    name: state.name,
-    phone: state.phone,
-    product: state.product,
-    dims: `${state.length} × ${state.width} سانتی‌متر`,
-    colorBrand: `${state.color} / ${state.brand}`,
-    opening: `${state.opening}${state.panels ? " — " + state.panels : ""}`,
-    glass: state.glass,
-    finishDetail: `${state.finish}${state.flower === "بله" ? " + گل دکوراتیو" : ""}`,
-    install: state.install,
-    price: toFa(price)
-  };
+  const lines = [
+    "🪟 <b>سفارش جدید از سایت اوج وین</b>",
+    `نام: ${escapeHtml(state.name)}`,
+    `شماره تماس: ${escapeHtml(state.phone)}`,
+    `محصول: ${escapeHtml(state.product)}`,
+    `ابعاد: ${escapeHtml(state.length)} × ${escapeHtml(state.width)} سانتی‌متر`,
+    `رنگ / برند: ${escapeHtml(state.color)} / ${escapeHtml(state.brand)}`,
+    `بازشو: ${escapeHtml(state.opening)}${state.panels ? " — " + escapeHtml(state.panels) : ""}`,
+    `شیشه: ${escapeHtml(state.glass)}`,
+    `جزئیات: ${escapeHtml(state.finish)}${state.flower === "بله" ? " + گل دکوراتیو" : ""}`,
+    `وضعیت نصب: ${escapeHtml(state.install)}`,
+    `💰 قیمت برآوردی: ${toFa(price)} تومان`
+  ];
+  const text = lines.join("\n");
+
   try{
-    const res = await fetch(NOTIFY_CONFIG.workerUrl, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_CONFIG.botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ chat_id: TELEGRAM_CONFIG.chatId, text, parse_mode: "HTML" })
     });
     const data = await res.json();
     return { ok: !!data.ok };
@@ -348,11 +354,8 @@ function handleSubmit(){
     if(result.ok){
       el.textContent = "✓ سفارش شما ثبت شد؛ به‌زودی با شما تماس می‌گیریم.";
       el.className = "send-status ok";
-    } else if(result.reason === "not_configured"){
-      el.textContent = "توجه به مدیر سایت: آدرس واسطه تلگرام هنوز تنظیم نشده (به README مراجعه کن).";
-      el.className = "send-status err";
     } else {
-      el.textContent = "سفارش ثبت شد، اما ارسال نوتیفیکیشن با خطا مواجه شد.";
+      el.textContent = "سفارش ثبت شد، اما ارسال نوتیفیکیشن تلگرام با خطا مواجه شد.";
       el.className = "send-status err";
     }
   });
@@ -418,7 +421,6 @@ function initCalculator(){
     }
   });
 
-  // شماره تماس رو توی همه لینک‌های "تماس نهایی" ست کن (اگر جایی جا افتاده باشه)
   document.querySelectorAll('a[data-role="phone-link"]').forEach(a => {
     a.setAttribute("href", `tel:${CONTACT_PHONE_TEL}`);
   });
@@ -427,8 +429,6 @@ function initCalculator(){
   renderStep();
 }
 
-// اگر به هر دلیلی (مثلاً کپی ناقص کد) چیزی خطا بدهد، به‌جای یک صفحه خالی
-// یک پیام واضح نشان می‌دهیم تا مشکل قابل تشخیص باشد.
 try{
   document.addEventListener("DOMContentLoaded", () => {
     try{
@@ -443,4 +443,4 @@ try{
   });
 } catch(err){
   console.error(err);
-  }
+     }
